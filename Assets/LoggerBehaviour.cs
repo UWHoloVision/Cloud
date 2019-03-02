@@ -9,7 +9,7 @@ using UnityEngine.UI;
 public class LoggerBehaviour : MonoBehaviour
 {
     private Text UIText;
-    private const int LOG_LIMIT = 15;
+    private const int LOG_LIMIT = 20;
     private Queue<string> logQueue = new Queue<string>();
 
     private System.Random rand = new System.Random();
