@@ -1,18 +1,14 @@
 ﻿using UnityEngine;
 
+using System;
 using System.Threading;
-using UnityEngine.XR.WSA;
 using System.Runtime.InteropServices;
-using Windows.Graphics.Imaging;
+using UnityEngine.XR.WSA;
 
 #if ENABLE_WINMD_SUPPORT
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
-using Windows.Media.MediaProperties;
 using Windows.Perception.Spatial;
+using Windows.Graphics.Imaging;
 #endif // ENABLE_WINMD_SUPPORT
 
 public class SensorFeedBehaviour : MonoBehaviour

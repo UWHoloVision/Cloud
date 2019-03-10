@@ -1,9 +1,9 @@
-﻿// Helper class for Hololens sensors
+﻿using UnityEngine;
+
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using UnityEngine;
 
 #if ENABLE_WINMD_SUPPORT
 using Windows.Media.Capture;
@@ -11,6 +11,9 @@ using Windows.Media.Capture.Frames;
 using Windows.Media.MediaProperties;
 #endif // ENABLE_WINMD_SUPPORT
 
+/*
+ * Helper class for Hololens sensors
+ */
 public class HololensSensors
 {
 #if ENABLE_WINMD_SUPPORT

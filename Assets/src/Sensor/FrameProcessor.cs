@@ -1,10 +1,11 @@
 ﻿
 using System;
+using System.Numerics;
+using System.Runtime.InteropServices;
+
 #if ENABLE_WINMD_SUPPORT
 using Windows.Media.Capture.Frames;
 using Windows.Perception.Spatial;
-using System.Numerics;
-using System.Runtime.InteropServices;
 #endif // ENABLE_WINMD_SUPPORT
 
 /*

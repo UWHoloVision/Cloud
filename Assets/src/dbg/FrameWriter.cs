@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
-#if ENABLE_WINMD_SUPPORT
+
 using System;
 using System.Threading.Tasks;
 using System.Text;
+
+#if ENABLE_WINMD_SUPPORT
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.Graphics.Imaging;
