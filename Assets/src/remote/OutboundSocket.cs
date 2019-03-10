@@ -1,10 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 #if ENABLE_WINMD_SUPPORT
 using System;
-using Windows.Networking;
 using Windows.Networking.Sockets;
 using Windows.Storage.Streams;
 #endif
@@ -56,20 +53,20 @@ public class Connection
     {
         Debug.Log("Connection received");
 
+        inStream = args.Socket.InputStream;
+        outStream = args.Socket.OutputStream;
+        /*
         try
         {
             while (true)
             {
 
-                inStream = args.Socket.InputStream;
-                outStream = args.Socket.OutputStream;
                 using (var dw = new DataWriter(args.Socket.OutputStream))
                 {
                     dw.WriteString("Hello There");
                     await dw.StoreAsync();
                     dw.DetachStream();
                 }
-
                 using (var dr = new DataReader(args.Socket.InputStream))
                 {
                     dr.InputStreamOptions = InputStreamOptions.Partial;
@@ -84,8 +81,9 @@ public class Connection
         {
             Debug.Log("disconnected!!!!!!!! " + e);
         }
+        */
 
     }
-    
+
 #endif
 }
