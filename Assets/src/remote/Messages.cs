@@ -1,18 +1,21 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Numerics;
 
-public class Messages : MonoBehaviour
+/*
+ * Serializable messsages to send down the wire
+ */
+public interface IRemoteMsg
 {
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    IRemoteMsg FromBytes(byte[] serialized);
+    byte[] ToBytes();
 }
+
+public struct DepthMsg
+{
+    uint w;
+    uint h;
+    uint[] bitmap;
+    Matrix4x4 frameToOrigin;
+    
+};
