@@ -52,10 +52,6 @@ public class Connection
                 {
                     // wait until we have a message to send
                     var msg = await conn.MessageQueue.ReceiveAsync();
-                    Debug.Log($"ID: {msg.FrameId}");
-                    Debug.Log($"FrameToOrigin: {msg.FrameToOrigin.ToString()}");
-                    Debug.Log($"Intrinsics: {msg.Intrinsics.ToString()}");
-                    Debug.Log($"Extrinsics: {msg.Extrinsics.ToString()}");
                     // compose and send a chunked message
                     using (var dw = new DataWriter(args.Socket.OutputStream))
                     {
