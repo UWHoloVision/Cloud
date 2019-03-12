@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using UnityEngine.XR.WSA;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
+using System.Linq;
 
 #if ENABLE_WINMD_SUPPORT
 using Windows.Media.Capture.Frames;
@@ -98,9 +99,9 @@ public class SensorFeedBehaviour : MonoBehaviour
                 byte[] data = new byte[2 * w * h];
                 softwareBitmap.CopyToBuffer(data.AsBuffer());
                 var p = new MessageComposer.Payload {
-                    FrameId = (ulong)systemTicks,
-                    Width = (ushort)softwareBitmap.PixelWidth,
-                    Height = (ushort)softwareBitmap.PixelHeight,
+                    FrameId = systemTicks,
+                    Width = softwareBitmap.PixelWidth,
+                    Height = softwareBitmap.PixelHeight,
                     BytesPerPoint = 8,
                     PointsPerPixel = 1,
                     FrameToOrigin = frameToOrigin,
@@ -108,9 +109,7 @@ public class SensorFeedBehaviour : MonoBehaviour
                     Extrinsics = extrinsics,
                     Data = data
                 };
-                // Debug
-                var d = BitConverter.GetBytes(systemTicks);
-                await conn.SendAsync(d);
+                await conn.SendAsync(p);
 
                 break;
 

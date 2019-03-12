@@ -1,12 +1,9 @@
 ﻿// Constructs FrameMessages
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Threading.Tasks;
 
 #if ENABLE_WINMD_SUPPORT
-using Windows.Storage.Streams;
 #endif // ENABLE_WINMD_SUPPORT
 
 public class MessageComposer
@@ -14,52 +11,52 @@ public class MessageComposer
 #if ENABLE_WINMD_SUPPORT
     public struct Payload
     {
-        public ulong FrameId;
-        public ushort Width;
-        public ushort Height;
-        public ushort BytesPerPoint;
-        public ushort PointsPerPixel;
+        public long FrameId;
+        public int Width;
+        public int Height;
+        public int BytesPerPoint;
+        public int PointsPerPixel;
         public Matrix4x4 FrameToOrigin;
         public Matrix4x4 Intrinsics;
         public Matrix4x4 Extrinsics;
         public byte[] Data;
     };
 
-    public static void ComposeDepth(Payload p, ref DataWriter w)
+    // helper for serializing Matrices
+    static byte[] GetMatrix(Matrix4x4 m)
     {
-        UnityEngine.Debug.Log("Composing ImageMetaData");
-        ImageMetadata meta = new ImageMetadata
+        float[] matrix =
         {
-            Header = ImageMetadata.ImageMetadataHeader,
-            FrameId = p.FrameId,
-            Width = p.Width,
-            Height = p.Height,
-            BytesPerPoint = p.BytesPerPoint,
-            PointsPerPixel = p.PointsPerPixel,
-            FrameToOrigin = p.FrameToOrigin,
-            Intrinsics = p.Intrinsics,
-            Extrinsics = p.Extrinsics
+            m.M11, m.M12, m.M13, m.M14,
+            m.M21, m.M22, m.M23, m.M24,
+            m.M31, m.M32, m.M33, m.M34,
+            m.M41, m.M42, m.M43, m.M44,
         };
-        meta.Serialize(w);
+        return matrix.SelectMany(BitConverter.GetBytes).ToArray();
+    }
 
-        UnityEngine.Debug.Log("Completed sending metadata");
-        // TODO: async
-        for (uint Index = 0; Index < p.Data.Length; Index += ImageChunk.CHUNK_SIZE)
-        {
-            UnityEngine.Debug.Log($"Sending chunk at {Index}");
-            // TODO: fix this
-            byte[] data = p.Data.Skip((int)Index).Take(ImageChunk.CHUNK_SIZE).ToArray();
-            ImageChunk chunk = new ImageChunk
-            {
-                Header = ImageChunk.ImageChunkHeader,
-                FrameId = p.FrameId,
-                Index = Index,
-                Data = data
-            };
-            chunk.Serialize(w);
-        }
+    // returns byte[] header
+    public static byte[] GetHeader(int bodyLength) {
+        var header = new int[] { 0, bodyLength };
+        header[0] = header.Length;
+        
+        return header.SelectMany(BitConverter.GetBytes).ToArray();
+    }
 
-        UnityEngine.Debug.Log("Completed sending chunks");
+    public static byte[] GetMessage(Payload p)
+    {
+        var body = BitConverter.GetBytes(p.FrameId)
+            .Concat(BitConverter.GetBytes(p.Width))
+            .Concat(BitConverter.GetBytes(p.Height))
+            .Concat(BitConverter.GetBytes(p.BytesPerPoint))
+            .Concat(BitConverter.GetBytes(p.PointsPerPixel))
+            .Concat(GetMatrix(p.FrameToOrigin))
+            .Concat(GetMatrix(p.Intrinsics))
+            .Concat(GetMatrix(p.Extrinsics))
+            .Concat(p.Data)
+            .ToArray();
+
+        return GetHeader(body.Length).Concat(body).ToArray();
     }
 #endif // ENABLE_WINMD_SUPPORT
 }

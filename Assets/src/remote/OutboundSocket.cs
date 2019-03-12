@@ -20,26 +20,33 @@ public class Connection
     // Connection details
     public string Port;
     public StreamSocketListener SocketListener;
-    // Queued messages to send to server
-    private BufferBlock<byte[]> MessageQueue;
 
-    private Connection(string port, StreamSocketListener socketListener, BufferBlock<byte[]> messageQueue)
+    // TODO: consider coming up with a different mechanism; a lock, or 2 1-size buffers so we can sync
+    // Queued messages to send to server
+    private BufferBlock<MessageComposer.Payload> MessageQueue;
+    
+    private Connection(string port, StreamSocketListener socketListener, BufferBlock<MessageComposer.Payload> messageQueue)
     {
         Port = port;
         SocketListener = socketListener;
         MessageQueue = messageQueue;
     }
 
+    static DataflowBlockOptions BlockOptions = new DataflowBlockOptions {
+        BoundedCapacity = 1
+    };
+
     public static async Task<Connection> CreateAsync()
     {
-        var conn = new Connection("9090", new StreamSocketListener(), new BufferBlock<byte[]>());
+        var conn = new Connection("9090", new StreamSocketListener(), new BufferBlock<MessageComposer.Payload>(BlockOptions));
         conn.MessageQueue.Complete(); // Initialize with "dead" message queue
         conn.SocketListener.Control.KeepAlive = false;
         conn.SocketListener.ConnectionReceived += async (sender, args) =>
         {
             Debug.Log("Connection received");
             // get rid of old MessageQueue, which has completed
-            var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<byte[]>());
+            var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<MessageComposer.Payload>(BlockOptions));
+            
             try
             {
                 while (true)
@@ -49,13 +56,11 @@ public class Connection
                     // compose and send a chunked message
                     using (var dw = new DataWriter(args.Socket.OutputStream))
                     {
-                        dw.WriteBytes(msg);
+                        dw.WriteBytes(MessageComposer.GetMessage(msg));
                         await dw.StoreAsync();
-                        // ...
                         await dw.FlushAsync();
                         dw.DetachStream();
                     }
-                    Debug.Log($"Message {BitConverter.ToInt64(msg, 0)} sent");
                 }
             }
             catch(Exception e)
@@ -76,9 +81,9 @@ public class Connection
     }
 
     // throws away data if connection is not established
-    public async Task SendAsync(byte[] data)
+    public async Task SendAsync(MessageComposer.Payload p)
     {
-        await MessageQueue.SendAsync(data);
+        await MessageQueue.SendAsync(p);
     }
 #endif
 }
