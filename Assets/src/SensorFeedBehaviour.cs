@@ -5,6 +5,7 @@ using System.Threading;
 using System.Runtime.InteropServices;
 using UnityEngine.XR.WSA;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text;
 
 #if ENABLE_WINMD_SUPPORT
 using Windows.Media.Capture.Frames;
@@ -31,7 +32,7 @@ public class SensorFeedBehaviour : MonoBehaviour
         unityWorldCoordinateSystem = Marshal.GetObjectForIUnknown(
             WorldManager.GetNativeISpatialCoordinateSystemPtr()) as SpatialCoordinateSystem;
         // TODO: Initialize connection
-        conn = new Connection(this);
+        conn = await Connection.CreateAsync();
         // Create FrameWriter if we want to save frames to Hololens
         // frameWriter = await FrameWriter.CreateFrameWriterAsync();
 
@@ -92,30 +93,25 @@ public class SensorFeedBehaviour : MonoBehaviour
                 if (frameWriter != null) // debug
                     await frameWriter.writeDepthPGM(softwareBitmap, systemTicks);
 
-                // TODO: implementation is backwards. Should be sending p to conn
-                if (conn.outStream != null)
-                {
-                    var dw = new DataWriter(conn.outStream);
-                    var w = softwareBitmap.PixelWidth;
-                    var h = softwareBitmap.PixelHeight;
-                    byte[] data = new byte[2 * w * h];
-                    softwareBitmap.CopyToBuffer(data.AsBuffer());
-                    var p = new MessageComposer.Payload {
-                        FrameId = (ulong)systemTicks,
-                        Width = (ushort)softwareBitmap.PixelWidth,
-                        Height = (ushort)softwareBitmap.PixelHeight,
-                        BytesPerPoint = 8,
-                        PointsPerPixel = 1,
-                        FrameToOrigin = frameToOrigin,
-                        Intrinsics = intrinsics,
-                        Extrinsics = extrinsics,
-                        Data = data
-                    };
-                    MessageComposer.ComposeDepth(p, ref dw);
-                    await dw.StoreAsync();
-                    await dw.FlushAsync();
-                    Debug.Log("Message sent");
-                }
+                var w = softwareBitmap.PixelWidth;
+                var h = softwareBitmap.PixelHeight;
+                byte[] data = new byte[2 * w * h];
+                softwareBitmap.CopyToBuffer(data.AsBuffer());
+                var p = new MessageComposer.Payload {
+                    FrameId = (ulong)systemTicks,
+                    Width = (ushort)softwareBitmap.PixelWidth,
+                    Height = (ushort)softwareBitmap.PixelHeight,
+                    BytesPerPoint = 8,
+                    PointsPerPixel = 1,
+                    FrameToOrigin = frameToOrigin,
+                    Intrinsics = intrinsics,
+                    Extrinsics = extrinsics,
+                    Data = data
+                };
+                // Debug
+                var d = BitConverter.GetBytes(systemTicks);
+                await conn.SendAsync(d);
+
                 break;
 
             default:
