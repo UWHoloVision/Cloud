@@ -46,13 +46,16 @@ public class Connection
             Debug.Log("Connection received");
             // get rid of old MessageQueue, which has completed
             var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<MessageComposer.Payload>(BlockOptions));
-            
             try
             {
                 while (true)
                 {
                     // wait until we have a message to send
                     var msg = await conn.MessageQueue.ReceiveAsync();
+                    Debug.Log($"ID: {msg.FrameId}");
+                    Debug.Log($"FrameToOrigin: {msg.FrameToOrigin.ToString()}");
+                    Debug.Log($"Intrinsics: {msg.Intrinsics.ToString()}");
+                    Debug.Log($"Extrinsics: {msg.Extrinsics.ToString()}");
                     // compose and send a chunked message
                     using (var dw = new DataWriter(args.Socket.OutputStream))
                     {
