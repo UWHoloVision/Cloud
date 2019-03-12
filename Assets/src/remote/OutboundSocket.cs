@@ -1,91 +1,88 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
+using System;
+using System.Threading.Tasks;
+using System.Threading;
 
 #if ENABLE_WINMD_SUPPORT
-using System;
-using Windows.Networking;
+using System.Threading.Tasks.Dataflow;
 using Windows.Networking.Sockets;
 using Windows.Storage.Streams;
-#endif
+#endif // ENABLE_WINMD_SUPPORT
 
 /*
  * After server connects to the Hololens, write to server through a stream.
+ * Other threads should push outbound TCP messages to this class.
+ * Must handle connection issues
  */
 public class Connection
 {
 #if ENABLE_WINMD_SUPPORT
-    StreamSocket socket;
-    StreamSocketListener listener;
-    String port;
-    SensorFeedBehaviour sensorFeed;
-    public IOutputStream outStream = null;
-    public IInputStream inStream = null;
-#endif
+    // Connection details
+    public string Port;
+    public StreamSocketListener SocketListener;
 
-    public Connection(SensorFeedBehaviour sensorFeed)
+    // TODO: consider coming up with a different mechanism; a lock, or 2 1-size buffers so we can sync
+    // Queued messages to send to server
+    private BufferBlock<MessageComposer.Payload> MessageQueue;
+    
+    private Connection(string port, StreamSocketListener socketListener, BufferBlock<MessageComposer.Payload> messageQueue)
     {
-#if ENABLE_WINMD_SUPPORT
-        listener = new StreamSocketListener();
-        port = "9090";
-        listener.ConnectionReceived += Listener_ConnectionReceived;
-        listener.Control.KeepAlive = false;
-
-        Listener_Start();
-#endif
+        Port = port;
+        SocketListener = socketListener;
+        MessageQueue = messageQueue;
     }
 
+    static DataflowBlockOptions BlockOptions = new DataflowBlockOptions {
+        BoundedCapacity = 1
+    };
 
-#if ENABLE_WINMD_SUPPORT
-    private async void Listener_Start()
+    public static async Task<Connection> CreateAsync()
     {
-        Debug.Log("Listener started");
-        try
+        var conn = new Connection("9090", new StreamSocketListener(), new BufferBlock<MessageComposer.Payload>(BlockOptions));
+        conn.MessageQueue.Complete(); // Initialize with "dead" message queue
+        conn.SocketListener.Control.KeepAlive = false;
+        conn.SocketListener.ConnectionReceived += async (sender, args) =>
         {
-            await listener.BindServiceNameAsync(port);
-        }
-        catch (Exception e)
-        {
-            Debug.Log("Listener failed: " + e.Message);
-        }
-
-        Debug.Log("Listening");
-    }
-
-    private async void Listener_ConnectionReceived(StreamSocketListener sender, StreamSocketListenerConnectionReceivedEventArgs args)
-    {
-        Debug.Log("Connection received");
-
-        try
-        {
-            while (true)
+            Debug.Log("Connection received");
+            // get rid of old MessageQueue, which has completed
+            var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<MessageComposer.Payload>(BlockOptions));
+            try
             {
-
-                inStream = args.Socket.InputStream;
-                outStream = args.Socket.OutputStream;
-                using (var dw = new DataWriter(args.Socket.OutputStream))
+                while (true)
                 {
-                    dw.WriteString("Hello There");
-                    await dw.StoreAsync();
-                    dw.DetachStream();
-                }
-
-                using (var dr = new DataReader(args.Socket.InputStream))
-                {
-                    dr.InputStreamOptions = InputStreamOptions.Partial;
-                    await dr.LoadAsync(12);
-                    var input = dr.ReadString(12);
-                    Debug.Log("received: " + input);
-
+                    // wait until we have a message to send
+                    var msg = await conn.MessageQueue.ReceiveAsync();
+                    // compose and send a chunked message
+                    using (var dw = new DataWriter(args.Socket.OutputStream))
+                    {
+                        dw.WriteBytes(MessageComposer.GetMessage(msg));
+                        await dw.StoreAsync();
+                        await dw.FlushAsync();
+                        dw.DetachStream();
+                    }
                 }
             }
-        }
-        catch (Exception e)
-        {
-            Debug.Log("disconnected!!!!!!!! " + e);
-        }
+            catch(Exception e)
+            {
+                Debug.Log($"Connection terminated: {e.Message}");
+            }
+            finally
+            {
+                // ensure MessageQueue won't process any more items
+                conn.MessageQueue.Complete();
+            }
+        };
+        Debug.Log($"OutboundSocket listening on port {conn.Port}");
+        // may throw if port is unavailable
+        await conn.SocketListener.BindServiceNameAsync(conn.Port);
 
+        return conn;
     }
-    
+
+    // throws away data if connection is not established
+    public async Task SendAsync(MessageComposer.Payload p)
+    {
+        await MessageQueue.SendAsync(p);
+    }
 #endif
 }
