@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using System.Threading;
 
 #if ENABLE_WINMD_SUPPORT
-using System.Threading.Tasks.Dataflow;
 using Windows.Networking.Sockets;
 using Windows.Storage.Streams;
 #endif // ENABLE_WINMD_SUPPORT
@@ -12,7 +11,6 @@ using Windows.Storage.Streams;
 /*
  * After server connects to the Hololens, write to server through a stream.
  * Other threads should push outbound TCP messages to this class.
- * Must handle connection issues
  */
 public class Connection
 {
@@ -20,43 +18,150 @@ public class Connection
     // Connection details
     public string Port;
     public StreamSocketListener SocketListener;
-
-    // TODO: consider coming up with a different mechanism; a lock, or 2 1-size buffers so we can sync
-    // Queued messages to send to server
-    private BufferBlock<MessageComposer.Payload> MessageQueue;
     
-    private Connection(string port, StreamSocketListener socketListener, BufferBlock<MessageComposer.Payload> messageQueue)
+    // update LatestDepthFrame as frequently as possible, unless locked by FrameArrived
+    private SemaphoreSlim DepthLock;
+    private MessageComposer.Payload? LatestDepthFrame;
+    private long LatestDepthTicks; // atomic
+    
+    // update ClosestColorFrame only if it's closest to the current depthFrame
+    private SemaphoreSlim ColorLock;
+    private MessageComposer.Payload? ClosestColorFrame;
+    private long LatestColorTicks; // atomic
+    
+    private Connection(string port, StreamSocketListener socketListener)
     {
         Port = port;
         SocketListener = socketListener;
-        MessageQueue = messageQueue;
+        DepthLock = new SemaphoreSlim(1);
+        LatestDepthFrame = null;
+        LatestDepthTicks = 0;
+        ColorLock = new SemaphoreSlim(1);
+        ClosestColorFrame = null;
+        LatestColorTicks = 0;
     }
 
-    static DataflowBlockOptions BlockOptions = new DataflowBlockOptions {
-        BoundedCapacity = 1
-    };
+    public async Task<Tuple<MessageComposer.Payload, MessageComposer.Payload>> GetFrames()
+    {
+        Tuple<MessageComposer.Payload, MessageComposer.Payload> tup = null;
+        await ColorLock.WaitAsync();
+        await DepthLock.WaitAsync();
+        try {
+            if (LatestDepthFrame != null && ClosestColorFrame != null)
+            {
+                tup = new Tuple<MessageComposer.Payload, MessageComposer.Payload>(
+                    LatestDepthFrame.Value,
+                    ClosestColorFrame.Value
+                );
+            }
+        }
+        finally
+        {
+            DepthLock.Release();
+            ColorLock.Release();
+        }
+        return tup;
+    }
+
+    public void SendColorFrame(MessageComposer.Payload p)
+    {
+        if (!ColorLock.Wait(0)) // if no lock, bail immediately
+        {
+            return;
+        }
+        try
+        {
+            // avoid duplicate frame
+            if (Interlocked.Exchange(ref LatestColorTicks, p.FrameId) != p.FrameId)
+            {
+                var latest_depth = Interlocked.Read(ref LatestDepthTicks); // may be stale!
+                var is_first = ClosestColorFrame == null;
+                var is_closer = is_first || Math.Abs(latest_depth - p.FrameId) < Math.Abs(latest_depth - ClosestColorFrame.Value.FrameId);
+                // update only if no previous Color frame, or if new frame is closer in time to latest depth
+                if (is_closer)
+                {
+                    ClosestColorFrame = p;
+                }
+            }
+        }
+        finally
+        {
+            ColorLock.Release();
+        }
+    }
+
+    public void SendDepthFrame(MessageComposer.Payload p)
+    {
+        if (!DepthLock.Wait(0)) // if no lock, bail immediately
+        {
+            return;
+        }
+        try
+        {
+            // avoid duplicate frame
+            if (Interlocked.Exchange(ref LatestDepthTicks, p.FrameId) != p.FrameId) 
+            {
+                // update depth frame as frequently as possible
+                LatestDepthFrame = p;
+            }
+        }
+        finally
+        {
+            DepthLock.Release();
+        }
+    }
+
+    public async Task ClearFrames()
+    {
+        await ColorLock.WaitAsync();
+        await DepthLock.WaitAsync();
+        try
+        {
+            LatestDepthFrame = null;
+            ClosestColorFrame = null;
+
+        }
+        finally
+        {
+            DepthLock.Release();
+            ColorLock.Release();
+        }
+
+    }
 
     public static async Task<Connection> CreateAsync()
     {
-        var conn = new Connection("9090", new StreamSocketListener(), new BufferBlock<MessageComposer.Payload>(BlockOptions));
-        conn.MessageQueue.Complete(); // Initialize with "dead" message queue
+        var conn = new Connection("9090", new StreamSocketListener());
         conn.SocketListener.Control.KeepAlive = false;
         conn.SocketListener.ConnectionReceived += async (sender, args) =>
         {
             Debug.Log("Connection received");
             // get rid of old MessageQueue, which has completed
-            var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<MessageComposer.Payload>(BlockOptions));
+            // var oldMessageQueue = Interlocked.Exchange(ref conn.MessageQueue, new BufferBlock<MessageComposer.Payload>(BlockOptions));
             try
             {
                 while (true)
                 {
-                    // wait until we have a message to send
-                    var msg = await conn.MessageQueue.ReceiveAsync();
+                    // wait for frame request from server
+                    using (var dr = new DataReader(args.Socket.InputStream))
+                    {
+                        await dr.LoadAsync(1);
+                    }
+                    // get latest frames
+                    Tuple<MessageComposer.Payload, MessageComposer.Payload> frames = null;
+                    while (frames == null)
+                    {
+                        // until we have a pair of frames
+                        frames = await conn.GetFrames();
+                    }
                     // compose and send a chunked message
                     using (var dw = new DataWriter(args.Socket.OutputStream))
                     {
-                        dw.WriteBytes(MessageComposer.GetMessage(msg));
+                        dw.WriteBytes(MessageComposer.GetMessage(frames.Item1)); // depth
                         await dw.StoreAsync();
+                        dw.WriteBytes(MessageComposer.GetMessage(frames.Item2)); // color
+                        await dw.StoreAsync();
+                        // flush
                         await dw.FlushAsync();
                         dw.DetachStream();
                     }
@@ -68,8 +173,7 @@ public class Connection
             }
             finally
             {
-                // ensure MessageQueue won't process any more items
-                conn.MessageQueue.Complete();
+                await conn.ClearFrames();
             }
         };
         Debug.Log($"OutboundSocket listening on port {conn.Port}");
@@ -77,12 +181,6 @@ public class Connection
         await conn.SocketListener.BindServiceNameAsync(conn.Port);
 
         return conn;
-    }
-
-    // throws away data if connection is not established
-    public async Task SendAsync(MessageComposer.Payload p)
-    {
-        await MessageQueue.SendAsync(p);
     }
 #endif
 }
