@@ -1,6 +1,5 @@
 import asyncio
 import numpy as np
-from PIL import Image
 import pptk
 
 byte_sz = np.dtype(np.byte).itemsize
@@ -10,6 +9,11 @@ float_sz = np.dtype(np.float32).itemsize
 matrix_sz = 16*float_sz
 
 np.set_printoptions(threshold=np.inf)
+
+def write_pgm(filepath, bitmap, w, h):
+    with open(filepath, 'wb') as f:
+        f.write("P5\n{}\t{}\n65535\n".format(w, h).encode('ascii'))
+        f.write(bitmap.tobytes())
 
 # read from message body, and save backups
 def parse_body(body, body_len):
@@ -79,8 +83,8 @@ def parse_body(body, body_len):
     data = np.frombuffer(body[ptr:body_len], dtype=np.uint16)
 
     bitmap = np.reshape(data, (height, width))
-    # img = Image.frombuffer('L', (width, height), bitmap.tobytes())
-    # img.save('./out/{}.pgm'.format(frame_id))
+    write_pgm('./out/{}.pgm'.format(frame_id), bitmap, width, height)
+
     return {
         'frame_id': frame_id,
         'width': width,
@@ -129,6 +133,7 @@ def get_cam_space_projection(projection_bin, depth_h, depth_w):
 
 def get_cam_to_world_mtx(frame_to_origin, camera_extrinsics):
     # camera_projection -> camera_view -> world state
+    # Todo: ???
     camera_to_image = np.array([
         [1, 0, 0, 0],
         [0, -1, 0, 0],
@@ -152,6 +157,7 @@ def get_camera_view_pts(depth_values, u_proj, v_proj):
             if depth_values[j][i] > 64000:
                 continue
             output_frame[j][i] = depth_values[j][i]
+            # ???
             unscaled_frame[j][i] = -1.0 * output_frame[j][i] / np.sqrt(u_proj[j][i]**2 + v_proj[j][i]**2 + 1)
 
     eff_frame = unscaled_frame/1000
@@ -186,11 +192,7 @@ def get_point_cloud(frame_id):
     v.set(point_size=0.0001)
     v.color_map('cool', scale=[0, 5])
 
-def run():
-    get_point_cloud('26258335755')
-
 if __name__ == '__main__':
-    run()
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(tcp_echo_client(loop))
-    # loop.close()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(tcp_echo_client(loop))
+    loop.close()
