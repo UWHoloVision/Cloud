@@ -76,14 +76,6 @@ public class FrameProcessor
         var cameraRGBToWorldTransform = spatialCoordinateSystem.TryGetTransformTo(unityWorldCoordinateSystem);
         Matrix4x4 frameToOrigin = cameraRGBToWorldTransform.Value;
         // Unity is lhs coordinate system, UWP is rhs => must multiply z-coords by -1...
-        // 3rd col
-        frameToOrigin.M13 = -frameToOrigin.M13;
-        frameToOrigin.M23 = -frameToOrigin.M23;
-        frameToOrigin.M43 = -frameToOrigin.M43;
-        // 3rd row
-        frameToOrigin.M31 = -frameToOrigin.M31;
-        frameToOrigin.M32 = -frameToOrigin.M32;
-        frameToOrigin.M34 = -frameToOrigin.M34;
 
         return Tuple.Create(frameToOrigin, projectionTransform, viewTransform);
     }

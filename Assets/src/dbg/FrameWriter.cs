@@ -76,7 +76,7 @@ public class FrameWriter
         return outBuf;
     }
 
-    public async Task writeDepthPGM(SoftwareBitmap softwareBitmap, long systemTicks)
+    public async void writeDepthPGM(SoftwareBitmap softwareBitmap, long systemTicks)
     {
         Debug.LogAssertion(softwareBitmap.BitmapPixelFormat == BitmapPixelFormat.Gray16); // depth
         var outputFile = await depthImgFolder.CreateFileAsync($"{systemTicks.ToString()}.pgm");
@@ -97,7 +97,7 @@ public class FrameWriter
         }
     }
 
-    public async Task writeColorPNG(SoftwareBitmap softwareBitmap, long systemTicks)
+    public async void writeColorPNG(SoftwareBitmap softwareBitmap, long systemTicks)
     {
         Debug.LogAssertion(softwareBitmap.BitmapPixelFormat == BitmapPixelFormat.Bgra8); // color
         var outputFile = await colorImgFolder.CreateFileAsync($"{systemTicks.ToString()}.png");

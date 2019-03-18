@@ -59,7 +59,7 @@ public class SensorFeedBehaviour : MonoBehaviour
     }
     
     // Glorious FrameArrived Handler
-    private async void FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
+    private void FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
     {
         var mfRef = sender.TryAcquireLatestFrame();
         var softwareBitmap = mfRef?.VideoMediaFrame?.SoftwareBitmap;
@@ -76,40 +76,66 @@ public class SensorFeedBehaviour : MonoBehaviour
         var extrinsics = tup.Item3;
         // Get System Ticks as a time value
         var systemTicks = mfRef.SystemRelativeTime.Value.Duration().Ticks;
+        var w = softwareBitmap.PixelWidth;
+        var h = softwareBitmap.PixelHeight;
+        byte[] data;
 
-        switch(softwareBitmap.BitmapPixelFormat)
+        switch (softwareBitmap.BitmapPixelFormat)
         {
             case BitmapPixelFormat.Bgra8: // Color
                 // check for duplicate frame
-                if (Interlocked.Exchange(ref latestColor, systemTicks) == systemTicks)
-                    break;
+                // if (Interlocked.Exchange(ref latestColor, systemTicks) == systemTicks)
+                //     break;
                 if (frameWriter != null) // debug
-                    await frameWriter.writeColorPNG(softwareBitmap, systemTicks);
+                    frameWriter.writeColorPNG(softwareBitmap, systemTicks);
+
+                data = new byte[4 * w * h];
+                softwareBitmap.CopyToBuffer(data.AsBuffer());
+                var buf = new byte[3 * w * h];
+                var c = 0;
+                for (var i = 0; i < w * h; i++)
+                {
+                    for (var j = 0; j < 3; j++)
+                    {
+                        buf[c] = data[i * 4 + 2 - j];
+                        c++;
+                    }
+                }
+                conn.SendColorFrame(new MessageComposer.Payload
+                {
+                    FrameId = systemTicks,
+                    Width = softwareBitmap.PixelWidth,
+                    Height = softwareBitmap.PixelHeight,
+                    BytesPerPoint = 1,
+                    PointsPerPixel = 3,
+                    FrameToOrigin = frameToOrigin,
+                    Intrinsics = intrinsics,
+                    Extrinsics = extrinsics,
+                    Data = buf
+                });
                 break;
 
             case BitmapPixelFormat.Gray16: // Depth
                 // check for duplicate frame
-                if (Interlocked.Exchange(ref latestDepth, systemTicks) == systemTicks)
-                    break;
+                // if (Interlocked.Exchange(ref latestDepth, systemTicks) == systemTicks)
+                //     break;
                 if (frameWriter != null) // debug
-                    await frameWriter.writeDepthPGM(softwareBitmap, systemTicks);
+                    frameWriter.writeDepthPGM(softwareBitmap, systemTicks);
 
-                var w = softwareBitmap.PixelWidth;
-                var h = softwareBitmap.PixelHeight;
-                byte[] data = new byte[2 * w * h];
+                data = new byte[2 * w * h];
                 softwareBitmap.CopyToBuffer(data.AsBuffer());
-                var p = new MessageComposer.Payload {
+                conn.SendDepthFrame(new MessageComposer.Payload
+                {
                     FrameId = systemTicks,
                     Width = softwareBitmap.PixelWidth,
                     Height = softwareBitmap.PixelHeight,
-                    BytesPerPoint = 8,
+                    BytesPerPoint = 2,
                     PointsPerPixel = 1,
                     FrameToOrigin = frameToOrigin,
                     Intrinsics = intrinsics,
                     Extrinsics = extrinsics,
                     Data = data
-                };
-                await conn.SendAsync(p);
+                });
 
                 break;
 
