@@ -11,7 +11,6 @@ using Windows.Storage.Streams;
 /*
  * After server connects to the Hololens, write to server through a stream.
  * Other threads should push outbound TCP messages to this class.
- * Must handle connection issues
  */
 public class Connection
 {
@@ -64,11 +63,9 @@ public class Connection
         return tup;
     }
 
-    public async void SendColorFrame(MessageComposer.Payload p)
+    public void SendColorFrame(MessageComposer.Payload p)
     {
-        Debug.Log($"Sending color frame {p.FrameId}");
-        var acq = await ColorLock.WaitAsync(100);
-        if (!acq)
+        if (!ColorLock.Wait(0)) // if no lock, bail immediately
         {
             return;
         }
@@ -93,11 +90,9 @@ public class Connection
         }
     }
 
-    public async void SendDepthFrame(MessageComposer.Payload p)
+    public void SendDepthFrame(MessageComposer.Payload p)
     {
-        Debug.Log($"Sending depth frame {p.FrameId}");
-        var acq = await DepthLock.WaitAsync(100);
-        if (!acq)
+        if (!DepthLock.Wait(0)) // if no lock, bail immediately
         {
             return;
         }
