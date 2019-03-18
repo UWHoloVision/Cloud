@@ -1,6 +1,8 @@
 import asyncio
 import numpy as np
 import pptk
+import time
+import os
 
 byte_sz = np.dtype(np.byte).itemsize
 int_sz = np.dtype(np.int32).itemsize
@@ -117,8 +119,9 @@ def parse_body(body, body_len):
 async def tcp_echo_client(loop):
     reader, writer = await asyncio.open_connection('192.168.0.102', 9090, loop=loop)
     
-    for i in range(1):
-        writer.write(b'\x01') # request a message
+    for i in range(30):
+        time.sleep(0.3)
+        # writer.write(b'\x01') # request a message
         # first message is depth
         _header_len = await reader.readexactly(4)
         header_len = np.frombuffer(_header_len, dtype=np.int32)[0]
@@ -141,6 +144,7 @@ async def tcp_echo_client(loop):
         print('BODY: {}'.format(len(body)))
         
         tup = parse_body(body, len(body))
+        time.sleep(0.3)
         
     print('Close the socket')
     writer.close()
@@ -308,14 +312,27 @@ def render(d_id, pv_id):
     # world_coordinates = np.array([pt for pt in world_coordinates if ~np.isnan(pt).any() and np.nonzero(pt)])
     return world_coordinates_filtered, np_colors_filtered
 
-def dbg():
-    (d1, c1) = render(174072985617, 174071403575)
-    (d2, c2) = render(174127310562, 174125690921)
+def load_all_msg():
+    files = os.listdir('./out')
+    cs = sorted([x.replace('.ppm', '') for x in files if 'ppm' in x])
+    ds = sorted([x.replace('.pgm', '') for x in files if 'pgm' in x])
+    return zip(ds, cs)
 
-    v = pptk.viewer(np.concatenate((d1, d2)))
+def dbg():
+    ds = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
+    cs = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
+
+    # superimpose all from the out directory
+    for (d, c) in load_all_msg():
+        d0, c0 = render(d, c)
+        ds = np.concatenate((ds, d0))
+        cs = np.concatenate((cs, c0))
+
+    v = pptk.viewer(ds)
+    v.set(point_size=0.0001, phi=0, r=1, theta=0)
     v.set(point_size=0.0001)
     v.set(lookat=np.array([0.0, 0.0, 0.0], dtype=np.float32))
-    np_colors_filtered = np.concatenate((c1, c2)).astype(float)
+    np_colors_filtered = cs.astype(float)
     np_colors_filtered /= 255
     np_colors_filtered = np.c_[np_colors_filtered, np.ones(np_colors_filtered.shape[0])]
     v.attributes(np_colors_filtered)
