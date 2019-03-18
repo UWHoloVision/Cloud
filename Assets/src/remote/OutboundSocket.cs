@@ -142,21 +142,18 @@ public class Connection
             {
                 while (true)
                 {
-                    // wait for frame request from server
-                    using (var dr = new DataReader(args.Socket.InputStream))
-                    {
-                        await dr.LoadAsync(1);
-                    }
                     // get latest frames
                     Tuple<MessageComposer.Payload, MessageComposer.Payload> frames = null;
                     while (frames == null)
                     {
+                        Debug.Log("Waiting for frames");
                         // until we have a pair of frames
                         frames = await conn.GetFrames();
                     }
                     // compose and send a chunked message
                     using (var dw = new DataWriter(args.Socket.OutputStream))
                     {
+                        Debug.Log("Writing msg");
                         dw.WriteBytes(MessageComposer.GetMessage(frames.Item1)); // depth
                         await dw.StoreAsync();
                         dw.WriteBytes(MessageComposer.GetMessage(frames.Item2)); // color
@@ -164,6 +161,7 @@ public class Connection
                         // flush
                         await dw.FlushAsync();
                         dw.DetachStream();
+                        Debug.Log("Done");
                     }
                 }
             }
