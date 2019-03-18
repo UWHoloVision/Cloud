@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using System.Threading;
 
 #if ENABLE_WINMD_SUPPORT
-using System.Threading.Tasks.Dataflow;
 using Windows.Networking.Sockets;
 using Windows.Storage.Streams;
 #endif // ENABLE_WINMD_SUPPORT

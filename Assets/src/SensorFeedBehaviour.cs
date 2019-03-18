@@ -5,14 +5,11 @@ using System.Threading;
 using System.Runtime.InteropServices;
 using UnityEngine.XR.WSA;
 using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
-using System.Linq;
 
 #if ENABLE_WINMD_SUPPORT
 using Windows.Media.Capture.Frames;
 using Windows.Perception.Spatial;
 using Windows.Graphics.Imaging;
-using Windows.Storage.Streams;
 #endif // ENABLE_WINMD_SUPPORT
 
 public class SensorFeedBehaviour : MonoBehaviour
@@ -20,8 +17,6 @@ public class SensorFeedBehaviour : MonoBehaviour
 #if ENABLE_WINMD_SUPPORT
     private Connection conn = null;
     private FrameWriter frameWriter = null;
-    private long latestDepth = 0;
-    private long latestColor = 0;
     private SpatialCoordinateSystem unityWorldCoordinateSystem = null;
 
     // Start is called before the first frame update
@@ -83,16 +78,14 @@ public class SensorFeedBehaviour : MonoBehaviour
         switch (softwareBitmap.BitmapPixelFormat)
         {
             case BitmapPixelFormat.Bgra8: // Color
-                // check for duplicate frame
-                // if (Interlocked.Exchange(ref latestColor, systemTicks) == systemTicks)
-                //     break;
                 if (frameWriter != null) // debug
                     frameWriter.writeColorPNG(softwareBitmap, systemTicks);
-
+                // Bgra8 has 4 bytes per pixel, apparently
                 data = new byte[4 * w * h];
                 softwareBitmap.CopyToBuffer(data.AsBuffer());
                 var buf = new byte[3 * w * h];
                 var c = 0;
+                // get rid of useless byte
                 for (var i = 0; i < w * h; i++)
                 {
                     for (var j = 0; j < 3; j++)
@@ -116,9 +109,6 @@ public class SensorFeedBehaviour : MonoBehaviour
                 break;
 
             case BitmapPixelFormat.Gray16: // Depth
-                // check for duplicate frame
-                // if (Interlocked.Exchange(ref latestDepth, systemTicks) == systemTicks)
-                //     break;
                 if (frameWriter != null) // debug
                     frameWriter.writeDepthPGM(softwareBitmap, systemTicks);
 
