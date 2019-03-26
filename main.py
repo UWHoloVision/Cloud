@@ -1,7 +1,6 @@
 import asyncio
 import numpy as np
 import pptk
-import time
 import os
 
 from server.frame_message import parse_body
@@ -109,5 +108,5 @@ def dbg():
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(tcp_echo_client(loop))
+    loop.run_until_complete(run_client(loop))
     loop.close()
