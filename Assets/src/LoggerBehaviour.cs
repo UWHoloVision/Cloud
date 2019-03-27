@@ -10,6 +10,7 @@ public class LoggerBehaviour : MonoBehaviour
     private Text UIText;
     private const int LOG_LIMIT = 20;
     private Queue<string> logQueue = new Queue<string>();
+    private CanvasGroup canvasgroup;
 
     private System.Random rand = new System.Random();
 
@@ -17,6 +18,8 @@ public class LoggerBehaviour : MonoBehaviour
     void Start()
     {
         this.UIText = GetComponent<Text>();
+        // this.canvasgroup = GetComponent<CanvasGroup>();
+        // this.canvasgroup.alpha = 0;
         Application.logMessageReceived += logMessageReceived;
     }
 
