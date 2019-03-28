@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 using System;
 using System.Threading.Tasks;
-using System.Linq;
 using System.Threading;
 
 #if ENABLE_WINMD_SUPPORT
@@ -43,40 +42,28 @@ public class MeshSocket
                         r.InputStreamOptions = InputStreamOptions.ReadAhead;
                         r.ByteOrder = ByteOrder.LittleEndian;
                         Debug.Log("Reading MeshData");
-                        // var meshData = await MeshMessage.ReadMeshData(dr);
-
-                        var a = await r.LoadAsync(4);
-                        Debug.Log($"A: {a}");
+                        await r.LoadAsync(4);
                         var NPoints = r.ReadInt32();
-                        var b = await r.LoadAsync(4);
-                        Debug.Log($"B: {b}");
+                        await r.LoadAsync(4);
                         var NTriangles = r.ReadInt32();
-
                         Debug.Log($"Ns: {NPoints} {NTriangles}");
                         
                         Vector3[] points = new Vector3[NPoints];
                         int[] triangles = new int[NTriangles * 3];
 
                         uint n = 4 * 3 * (uint)NPoints;
-                        Debug.Log($"Reading {n} points");
-                        var c = await r.LoadAsync(n);
-                        Debug.Log($"C: {c}");
+                        await r.LoadAsync(n);
                         for (var i = 0; i < NPoints; i++)
                         {
-                            //await r.LoadAsync(4);
                             var x = r.ReadSingle();
-                            //await r.LoadAsync(4);
                             var y = r.ReadSingle();
-                            //await r.LoadAsync(4);
                             var z = r.ReadSingle();
                             points[i] = new Vector3(x, y, z);
                         }
                         n = 4 * 3 * (uint)NTriangles;
-                        Debug.Log($"Reading {n} triangles");
                         await r.LoadAsync(n);
                         for (var i = 0; i < NTriangles * 3; i++)
                         {
-                            // await r.LoadAsync(4);
                             triangles[i] = r.ReadInt32();
                         }
 

@@ -1,6 +1,5 @@
 ﻿using System.Threading;
 using UnityEngine;
-using System.Linq;
 
 public class MeshBehaviour : MonoBehaviour
 {
@@ -12,21 +11,9 @@ public class MeshBehaviour : MonoBehaviour
 
     public async void Start()
     {
-        Debug.Log("Mesh rendering");
         cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        // cube.GetComponent<MeshFilter>().mesh.Clear();
-        cube.GetComponent<MeshFilter>().mesh.vertices = new Vector3[]
-        {
-            new Vector3(0, 0, 0),
-            new Vector3(10, 0, 0),
-            new Vector3(0, 10, 0)
-        };
-        cube.GetComponent<MeshFilter>().mesh.triangles = new int[] { 0, 1, 2 };
-        // should do inversetransform for pts
-        // cube.transform.position = Camera.main.transform.position + Camera.main.transform.forward;
-        cube.transform.position = Camera.main.transform.position;
-        // cube.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
-        cube.GetComponent<MeshFilter>();
+        cube.transform.position = Vector3.zero;
+        cube.GetComponent<MeshFilter>().mesh.Clear();
         meshSocket = await MeshSocket.CreateAsync();
     }
 
@@ -36,13 +23,18 @@ public class MeshBehaviour : MonoBehaviour
         var cmp = Interlocked.Exchange(ref MeshUpdate, last);
         if (last != cmp) // mesh has updated!
         {
-            cube.GetComponent<MeshFilter>().mesh.vertices = 
-                meshSocket.vertices.Select(v => Camera.main.transform.InverseTransformPoint(v))
-                    .ToArray();
-            cube.GetComponent<MeshFilter>().mesh.triangles =
-                meshSocket.triangles;
-            cube.transform.localPosition = Vector3.zero;
-            cube.transform.localRotation = Quaternion.identity;
+            Debug.Log("Rendering mesh");
+            Mesh mesh = new Mesh();
+            mesh.vertices = meshSocket.vertices;
+            mesh.triangles = meshSocket.triangles;
+            mesh.RecalculateNormals();
+            cube.GetComponent<MeshFilter>().mesh = mesh;
+            cube.transform.position = Vector3.zero;
+            cube.transform.rotation = Quaternion.Euler(Vector3.zero);
+            cube.transform.localScale = Vector3.one; // transformed on server-side from rhs->lhs
+            cube.GetComponent<Renderer>().material = new Material(Shader.Find("Custom/MeshShader"));
+            cube.GetComponent<Renderer>().material.color = Color.red;
+            Debug.Log("Rendered mesh");
         }
     }
 #endif // ENABLE_WINMD_SUPPORT

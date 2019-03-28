@@ -74,6 +74,10 @@ public class FrameProcessor
         // Transform: Camera Coord System -> Unity world coord
         // See https://github.com/Microsoft/MixedRealityToolkit-Unity/blob/96cc9ab8998280edcd6871f41e89584030ee4f26/Assets/HoloToolkit-Preview/QRTracker/Scripts/SpatialGraphCoordinateSystem.cs#L94
         var cameraRGBToWorldTransform = spatialCoordinateSystem.TryGetTransformTo(unityWorldCoordinateSystem);
+        if (cameraRGBToWorldTransform == null)
+        {
+            return null;
+        }
         Matrix4x4 frameToOrigin = cameraRGBToWorldTransform.Value;
 
         return Tuple.Create(frameToOrigin, projectionTransform, viewTransform);

@@ -66,6 +66,10 @@ public class SensorFeedBehaviour : MonoBehaviour
         }
         // Get Transform matrices
         var tup = FrameProcessor.GetTransforms(mfRef, unityWorldCoordinateSystem);
+        if (tup == null)
+        {
+            return;
+        }
         var frameToOrigin = tup.Item1;
         var intrinsics = tup.Item2;
         var extrinsics = tup.Item3;
